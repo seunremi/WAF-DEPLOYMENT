@@ -1,10 +1,5 @@
-AWSTemplateFormatVersion: 2010-09-09
-Parameters:
-loadbalancer:
-Type: String
-Default: WAT-testing
-
-Description: ALB WAF
+WSTemplateFormatVersion: 2010-09-09
+Description: Peoplesoft92 ALB WAF
 Resources:
   WebACL:
     Type: AWS::WAFv2::WebACL
@@ -14,17 +9,10 @@ Resources:
       Description: This is the Peoplesoft92 ALB WAF
       DefaultAction:
         Allow: {}
-  MyWebACLAssociation:
-    Type: "AWS::WAFRegional::WebACLAssociation"
-    Properties:
-     ResourceArn: 
-      Ref: loadbalancer
-    WebACLId:
-      Ref: MyWebACL
       VisibilityConfig:
         SampledRequestsEnabled: true
         CloudWatchMetricsEnabled: true
-        MetricName: ALB-WAF
+        MetricName: Peoplesoft92-ALB-WAF
       Rules:
         - Name: F5-OWASP_Managed
           Priority: 0
@@ -38,6 +26,10 @@ Resources:
             ManagedRuleGroupStatement:
               VendorName: F5
               Name: OWASP_Managed
-              
+  WebACLAssociation:
+      Type: AWS::WAFv2::WebACLAssociation
+      Properties: 
+        ResourceArn: arn:aws:elasticloadbalancing:us-east-1:420417608870:loadbalancer/app/WAF-testing/b9472e166cbf817c 
+        WebACLArn: !Ref WebACL
               
               
