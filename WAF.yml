@@ -1,10 +1,10 @@
 WSTemplateFormatVersion: 2010-09-09
-Description: Peoplesoft92 ALB WAF
+Description: name
 Resources:
   WebACL:
     Type: AWS::WAFv2::WebACL
     Properties:
-      Name: Peoplesoft92-WAF
+      Name: name-WAF
       Scope: REGIONAL
       Description: This is the Peoplesoft92 ALB WAF
       DefaultAction:
@@ -12,7 +12,7 @@ Resources:
       VisibilityConfig:
         SampledRequestsEnabled: true
         CloudWatchMetricsEnabled: true
-        MetricName: Peoplesoft92-ALB-WAF
+        MetricName: name-ALB-WAF
       Rules:
         - Name: F5-OWASP_Managed
           Priority: 0
