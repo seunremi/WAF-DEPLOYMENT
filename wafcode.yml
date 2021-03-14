@@ -1,0 +1,327 @@
+# Deploying Security Benefit WAF following Fortiner OWASP Top 10 Vulnerabilities
+AWSTemplateFormatVersion: 2010-09-09
+Description: name ALB WAF
+Resources:
+# Creating all IP Sets for Whitelist
+  IPSet:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: name IP Range
+      Name: name
+      Scope: REGIONAL
+      IPAddressVersion: IPV4
+      Addresses:
+        - ip address
+
+ IPSet:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: IP name 
+      Name: name
+      Scope: REGIONAL
+      IPAddressVersion: IPV4
+      Addresses:
+        -ip address
+     
+  
+# Creating the Web ACL with Fortinet OWASP rules, AWS Managed rules and Whitelist rules.
+
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: name-WAF
+      Scope: REGIONAL
+      Description: This is the name ALB WAF
+      DefaultAction:
+        Block: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: name ALB-WAF
+      Rules:
+
+        - Name: Fortinet-all_rules
+          Priority: 0
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: Fortinet-OWASP10
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: Fortinet
+              Name: all_rules
+        
+        - Name: name-IP
+          Priority: 1
+          Statement:
+            IPSetReferenceStatement:
+              Arn: !GetAtt name.Arn
+          Action:
+            Allow: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName:name-IP-Allow
+
+        - Name: name
+          Priority: 2
+          Statement:
+            IPSetReferenceStatement:
+              Arn: !GetAtt name.Arn
+          Action:
+            Allow: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName:name-VPN-Allow
+
+
+        - Name: AWS-ManagedRulesAdminProtection
+          Priority: 7
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesAdminProtectionRuleSetMetric
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAdminProtectionRuleSet
+              ExcludedRules: []
+
+        - Name: AWS-ManagedRulesAnonymousIpList
+          Priority: 8
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAnonymousIpList
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWS-AWSManagedRulesAnonymousIpList
+
+        - Name: AWS-ManagedRulesAmazonIpReputationList
+          Priority: 9
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesAmazonIpReputationListSetMetric
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+              ExcludedRules: []
+
+        - Name: AWS-ManagedRulesLinuxOS
+          Priority: 10
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesLinuxRuleSetMetric
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesLinuxRuleSet
+              ExcludedRules: []
+
+        - Name: AWS-AWSManagedRulesPHPRuleSet
+          Priority: 11
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesPHPRuleSet
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWS-AWSManagedRulesPHPRuleSet
+
+# Associating the Peoplesoft92 ALB to the Web ACL
+
+  WebACLAssociation:
+      Type: AWS::WAFv2::WebACLAssociation
+      Properties: 
+        ResourceArn: alb arn 
+        WebACLArn: !GetAtt WebACL.Arn
+
+# Creating the Kinesis Firehose Delivery Stream and associated configurations; S3 roles and policies, AWS Glue Crawler and KMS key.     
+
+  deliverystream:
+    DependsOn:
+      - deliveryPolicy
+      - myKey
+      - s3bucket
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: aws-waf-logs-regional
+      ExtendedS3DestinationConfiguration:
+        BucketARN:
+          !Join ['', ['arn:aws:s3:::', !Ref 's3bucket']]
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 50
+        CompressionFormat: UNCOMPRESSED
+        Prefix: firehose/
+        RoleARN: !GetAtt deliveryRole.Arn
+        ProcessingConfiguration:
+          Enabled: false
+        EncryptionConfiguration:
+          KMSEncryptionConfig:
+            AWSKMSKeyARN: !GetAtt myKey.Arn
+  s3bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  deliveryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Ref 'AWS::AccountId'
+  deliveryPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: firehose_delivery_policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'kinesis:DescribeStream'
+              - 'kinesis:GetShardIterator'
+              - 'kinesis:GetRecords'
+              - 'kinesis:ListShards'
+              - 'glue:GetTable'
+              - 'glue:GetTableVersion'
+              - 'glue:GetTableVersions'
+              - 'kms:GenerateDataKey'
+              - 'kms:Decrypt'
+              - 'logs:PutLogEvents'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 's3:AbortMultipartUpload'
+              - 's3:GetBucketLocation'
+              - 's3:GetObject'
+              - 's3:ListBucket'
+              - 's3:ListBucketMultipartUploads'
+              - 's3:PutObject'
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::' 
+                  - !Ref s3bucket
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref s3bucket
+                  - '*'
+
+      Roles:
+        - !Ref deliveryRole
+  MyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "glue.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'
+  glueGrawlJob:
+    Type: AWS::Glue::Crawler
+    Properties:
+      DatabaseName: 'sampledb'
+      Description: 'waf crawler'
+      Name: 'waflogcrawlereglue'
+      Role: !Ref MyRole
+      TablePrefix: 'jsonregionWafLogs'
+      Targets:
+        S3Targets:
+          - Path: !Ref s3bucket
+  myKey:
+    DependsOn: MyRole
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "An CMK"
+      KeyPolicy: {
+        "Version": "2012-10-17",
+        "Id": "key-default-1",
+        "Statement": [
+        {
+          "Sid": "Enable IAM User Permissions",
+          "Effect": "Allow",
+          "Principal": {"AWS": { "Fn::Join": ["" , ["arn:aws:iam::", {"Ref": "AWS::AccountId"} ,":root" ]] }},
+          "Action": "kms:*",
+          "Resource": "*"
+        },
+        {
+          "Sid": "Allow administration of the key",
+          "Effect": "Allow",
+          "Principal": { "AWS": {"Fn::GetAtt": ["MyRole", "Arn"] } },
+          "Action": [
+            "kms:Create*",
+            "kms:Describe*",
+            "kms:Enable*",
+            "kms:List*",
+            "kms:Put*",
+            "kms:Update*",
+            "kms:Revoke*",
+            "kms:Disable*",
+            "kms:Get*",
+            "kms:Delete*",
+            "kms:ScheduleKeyDeletion",
+            "kms:CancelKeyDeletion"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Sid": "Allow use of the key",
+          "Effect": "Allow",
+          "Principal": { "AWS": {"Fn::GetAtt": ["MyRole", "Arn"] } },
+          "Action": [
+            "kms:DescribeKey",
+            "kms:Encrypt",
+            "kms:Decrypt",
+            "kms:ReEncrypt*",
+            "kms:GenerateDataKey",
+            "kms:GenerateDataKeyWithoutPlaintext"
+          ],
+          "Resource": "*"
+        }
+        ]
+      }
